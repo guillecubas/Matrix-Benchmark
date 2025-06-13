@@ -15,23 +15,63 @@ dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(dirname "$dir")"
 echo "Project root: $project_root"
 
-# 2. Ensure top-level results directory exists
+
 mkdir -p "$project_root/results"
 echo
+#!/bin/bash
+set -e  # Salir si hay error
 
 # ===== C++ Benchmark =====
-echo "[C++] Building and running..."
-cd "$project_root/cpp"
-mkdir -p build
-g++ -std=c++17 -O3 -march=native src/benchmark.cpp -o build/benchmark.exe -lpsapi
-RUN_CMD="build/benchmark.exe"
+echo "[C++] Iniciando proceso..."
 
-# Run C++ benchmark
-$RUN_CMD
+# Verificar project_root
+if [ -z "$project_root" ]; then
+    project_root="$(pwd)"
+    echo "[C++] project_root definido como: $project_root"
+fi
+
+echo "[C++] Cambiando a directorio C++..."
+cd "$project_root/cpp" || {
+    echo "[ERROR] No se puede acceder a $project_root/cpp"
+    exit 1
+}
+
+echo "[C++] Directorio actual: $(pwd)"
+echo "[C++] Contenido del directorio:"
+ls -la
+
+echo "[C++] Creando directorio build..."
+mkdir -p build
+
+echo "[C++] Verificando archivos fuente..."
+if [ ! -f "src/benchmark.cpp" ]; then
+    echo "[ERROR] No se encuentra src/benchmark.cpp"
+    exit 1
+fi
+
+if [ ! -f "src/matrix.cpp" ]; then
+    echo "[ERROR] No se encuentra src/matrix.cpp"
+    exit 1
+fi
+
+echo "[C++] Compilando..."
+g++ -std=c++17 -O3 -march=native src/benchmark.cpp src/matrix.cpp -o build/benchmark.exe -lpsapi 2>&1
+if [ $? -ne 0 ]; then
+    echo "[C++] Compilation failed!"
+    exit 1
+fi
+
+echo "[C++] Compilación exitosa. Ejecutando benchmark..."
+./build/benchmark.exe 2>&1
+exit_code=$?
+
+echo "[C++] Benchmark terminado con código: $exit_code"
+if [ $exit_code -ne 0 ]; then
+    echo "[C++] Execution failed!"
+    exit 1
+fi
 
 echo "[C++] Done. Results -> $project_root/results/benchmark_results_cpp.csv"
-echo
-
 # ===== Java Benchmark =====
 echo "[Java] Compiling and running..."
 cd "$project_root/java/src"

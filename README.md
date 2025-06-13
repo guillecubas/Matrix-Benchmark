@@ -17,7 +17,6 @@ matrix-benchmark/
 
 ## ⚡ Quick Start
 
-Ensure you have a C++ compiler, JDK, and Python installed.
 
 1. **Full pipeline**
 
@@ -31,15 +30,11 @@ Ensure you have a C++ compiler, JDK, and Python installed.
    ````bash
    cd cpp
    # Compile with optimizations
-   g++ -std=c++17 -O3 -march=native src/benchmark.cpp -o build/benchmark.exe -lpsapi
+   g++ -std=c++17 -O3 -march=native src/benchmark.cpp src/matrix.cpp -o build/benchmark.exe -lpsapi 2>&1
    # Run
    mkdir -p ../results
    ./build/benchmark.exe
-   ```bash
-   cd cpp && mkdir -p build && cd build
-   cmake -DCMAKE_BUILD_TYPE=Release ../src && make
-   ./benchmark
-   ````
+
 
 3. **Java only**
 
@@ -62,6 +57,3 @@ Ensure you have a C++ compiler, JDK, and Python installed.
 * **CSV outputs** in `results/`
 * **Charts** (PNG) in `plots/` via `generate_plots.py`
 
----
-
-*MIT License*
