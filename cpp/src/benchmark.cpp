@@ -4,6 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <numeric>
 #include <ctime>
 
 #ifdef _WIN32
@@ -15,33 +16,56 @@
 
 namespace fs = std::filesystem;
 
-// === Production code: matrix operations ===
-static std::vector<std::vector<double>> generate_matrix(size_t n) {
+// Matrix class with contiguous storage
+typedef double Scalar;
+class Matrix {
+public:
+    explicit Matrix(size_t n) : n_(n), data_(n * n) {}
+
+    Scalar& operator()(size_t i, size_t j) {
+        return data_[i * n_ + j];
+    }
+    const Scalar& operator()(size_t i, size_t j) const {
+        return data_[i * n_ + j];
+    }
+
+    size_t size() const { return n_; }
+
+private:
+    size_t n_;
+    std::vector<Scalar> data_;
+};
+
+// Generate an n×n matrix of uniform [0,1) doubles
+Matrix generate_matrix(size_t n) {
+    Matrix M(n);
     std::mt19937_64 rng(std::random_device{}());
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
-    std::vector<std::vector<double>> M(n, std::vector<double>(n));
-    for (size_t i = 0; i < n; ++i)
-        for (size_t j = 0; j < n; ++j)
-            M[i][j] = dist(rng);
+    std::uniform_real_distribution<Scalar> dist(0.0, 1.0);
+    for (size_t i = 0; i < n; ++i) {
+        for (size_t j = 0; j < n; ++j) {
+            M(i, j) = dist(rng);
+        }
+    }
     return M;
 }
 
-static std::vector<std::vector<double>> matrix_multiply(
-    const std::vector<std::vector<double>>& A,
-    const std::vector<std::vector<double>>& B) {
+// Naïve O(n^3) multiply
+Matrix multiply(const Matrix& A, const Matrix& B) {
     size_t n = A.size();
-    std::vector<std::vector<double>> C(n, std::vector<double>(n, 0.0));
-    for (size_t i = 0; i < n; ++i)
+    Matrix C(n);
+    for (size_t i = 0; i < n; ++i) {
         for (size_t j = 0; j < n; ++j) {
-            double sum = 0.0;
-            for (size_t k = 0; k < n; ++k)
-                sum += A[i][k] * B[k][j];
-            C[i][j] = sum;
+            Scalar sum = 0.0;
+            for (size_t k = 0; k < n; ++k) {
+                sum += A(i, k) * B(k, j);
+            }
+            C(i, j) = sum;
         }
+    }
     return C;
 }
 
-// Cross-platform function to get peak memory usage (MB)
+// Cross-platform peak memory usage (MB)
 double get_peak_memory_mb() {
 #ifdef _WIN32
     PROCESS_MEMORY_COUNTERS pmc;
@@ -52,113 +76,101 @@ double get_peak_memory_mb() {
 #else
     struct rusage usage;
     getrusage(RUSAGE_SELF, &usage);
-    // On Linux, ru_maxrss is in KB, on macOS it's in bytes
-    #ifdef __APPLE__
-        return static_cast<double>(usage.ru_maxrss) / (1024.0 * 1024.0);
-    #else
-        return static_cast<double>(usage.ru_maxrss) / 1024.0;
-    #endif
+  #ifdef __APPLE__
+    return static_cast<double>(usage.ru_maxrss) / (1024.0 * 1024.0);
+  #else
+    return static_cast<double>(usage.ru_maxrss) / 1024.0;
+  #endif
 #endif
 }
 
-// === Benchmarking function ===
 void benchmark_size(size_t n, int runs, std::ofstream& out) {
-    std::cout << "Benchmarking matrix size " << n << "x" << n << "..." << std::endl;
-    
-    double total_time = 0.0;
-    double total_cpu = 0.0;
-    double total_mem = 0.0;
+    std::cout << "Benchmarking size " << n << "x" << n << "...\n";
+
+    // Pre-generate matrices
+    Matrix A = generate_matrix(n);
+    Matrix B = generate_matrix(n);
+
+    // Warm-up (not timed)
+    multiply(A, B);
+
+    std::vector<double> wall_times;
+    std::vector<double> cpu_times;
+    std::vector<double> mem_usages;
 
     for (int r = 0; r < runs; ++r) {
-        std::cout << "  Run " << (r + 1) << "/" << runs << std::endl;
-        
-        auto A = generate_matrix(n);
-        auto B = generate_matrix(n);
-
+        auto cpu0 = std::clock();
         auto t0 = std::chrono::high_resolution_clock::now();
-        std::clock_t c0 = std::clock();
 
-        auto C = matrix_multiply(A, B);
+        Matrix C = multiply(A, B);
 
-        std::clock_t c1 = std::clock();
         auto t1 = std::chrono::high_resolution_clock::now();
+        auto cpu1 = std::clock();
 
-        std::chrono::duration<double> dt = t1 - t0;
-        double elapsed = dt.count();
-        double cpu_sec = double(c1 - c0) / CLOCKS_PER_SEC;
-        double peak_mb = get_peak_memory_mb();
+        double elapsed = std::chrono::duration<double>(t1 - t0).count();
+        double cpu_sec = double(cpu1 - cpu0) / CLOCKS_PER_SEC;
+        double mem_mb = get_peak_memory_mb();
 
-        total_time += elapsed;
-        total_cpu += cpu_sec;
-        total_mem += peak_mb;
-        
-        std::cout << "    Time: " << elapsed << "s, Memory: " << peak_mb << "MB" << std::endl;
+        wall_times.push_back(elapsed);
+        cpu_times.push_back(cpu_sec);
+        mem_usages.push_back(mem_mb);
     }
 
-    double avg_time = total_time / runs;
-    double avg_cpu = total_cpu / runs;
-    double avg_mem = total_mem / runs;
+    // Discard first measurement
+    if (!wall_times.empty()) {
+        wall_times.erase(wall_times.begin());
+        cpu_times.erase(cpu_times.begin());
+        mem_usages.erase(mem_usages.begin());
+    }
 
-    out << n << ","
-        << avg_time << ","
-        << avg_cpu << ","
-        << avg_mem << "\n";
-    
-    std::cout << "  Average - Time: " << avg_time << "s, Memory: " << avg_mem << "MB" << std::endl;
+    // Compute averages
+    double avg_wall = std::accumulate(wall_times.begin(), wall_times.end(), 0.0) / wall_times.size();
+    double avg_cpu  = std::accumulate(cpu_times.begin(),  cpu_times.end(),  0.0) / cpu_times.size();
+    double avg_mem  = std::accumulate(mem_usages.begin(), mem_usages.end(), 0.0) / mem_usages.size();
+
+    // Write CSV line and flush
+    out << n << "," << avg_wall << "," << avg_cpu << "," << avg_mem << "\n";
+    out.flush();
+
+    std::cout << "  -> avg wall: " << avg_wall << "s, cpu: " << avg_cpu << "s, mem: " << avg_mem << "MB\n";
 }
 
 int main(int argc, char* argv[]) {
-    std::cout << "Starting C++ Matrix Multiplication Benchmark..." << std::endl;
-    
-    // Get current working directory
-    fs::path cwd = fs::current_path();
-    std::cout << "Current working directory: " << cwd << std::endl;
-    
-    // Try multiple strategies for results directory
-    fs::path results_dir;
-    
-    // Strategy 1: Try parent directory
-    if (cwd.has_parent_path()) {
-        results_dir = cwd.parent_path() / "results";
-    } else {
-        // Strategy 2: Use current directory
-        results_dir = cwd / "results";
-    }
-    
-    std::cout << "Creating results directory: " << results_dir << std::endl;
-    
-    try {
-        fs::create_directories(results_dir);
-    } catch (const std::exception& e) {
-        std::cerr << "Error creating directory: " << e.what() << std::endl;
-        // Fallback to current directory
-        results_dir = cwd;
-        std::cout << "Using current directory instead: " << results_dir << std::endl;
-    }
+    std::cout << "Starting C++ benchmark with Matrix class...\n";
 
-    // Prepare output file
-    fs::path output_file = results_dir / "benchmark_results_cpp.csv";
-    std::cout << "Output file: " << output_file << std::endl;
-    
-    std::ofstream out(output_file);
+    // Determine project root from executable path
+    fs::path exePath = fs::absolute(argv[0]);
+    // exePath: .../cpp/build/benchmark.exe
+    // go up three levels: build -> cpp -> project root
+    fs::path projectRoot = exePath.parent_path().parent_path().parent_path();
+    std::cout << "Executable: " << exePath << "\n";
+    std::cout << "Project root: " << projectRoot << "\n";
+
+    // Prepare root-level results directory
+    fs::path resultsDir = projectRoot / "results";
+    std::cout << "Creating results directory: " << resultsDir << "\n";
+    fs::create_directories(resultsDir);
+
+    // CSV output path in root/results
+    fs::path csvFile = resultsDir / "benchmark_results_cpp.csv";
+    std::cout << "CSV file: " << csvFile << "\n";
+    std::ofstream out(csvFile);
     if (!out) {
-        std::cerr << "Failed to open " << output_file << " for writing" << std::endl;
+        std::cerr << "Error: cannot write to " << csvFile << "\n";
         return 1;
     }
 
-    out << "size,avg_time_s,avg_cpu_s,avg_mem_mb\n";
+    // CSV header
+    out << "size,avg_wall_s,avg_cpu_s,avg_mem_mb\n";
+    out.flush();
 
     std::vector<size_t> sizes = {128, 256, 512, 1024, 2048};
-    int runs = 3;
-    
-    std::cout << "Running benchmark with " << runs << " runs per size" << std::endl;
-    
+    const int runs = 4;  // discard first measurement
+
     for (auto n : sizes) {
         benchmark_size(n, runs, out);
-        out.flush(); // Ensure data is written immediately
     }
 
-    out.close();
-    std::cout << "Benchmark complete! Results saved to: " << output_file << std::endl;
+    std::cout << "C++ benchmark complete. CSV saved to: " << csvFile << "\n";
     return 0;
 }
