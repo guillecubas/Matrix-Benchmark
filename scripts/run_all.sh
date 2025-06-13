@@ -23,7 +23,7 @@ echo
 echo "[C++] Building and running..."
 cd "$project_root/cpp"
 mkdir -p build
-g++ -std=c++17 src/benchmark.cpp -o build/benchmark.exe -lpsapi
+g++ -std=c++17 -O3 -march=native src/benchmark.cpp -o build/benchmark.exe -lpsapi
 RUN_CMD="build/benchmark.exe"
 
 # Run C++ benchmark
