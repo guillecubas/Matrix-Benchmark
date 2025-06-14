@@ -34,14 +34,14 @@ void benchmark_size(size_t n, int runs, std::ofstream& out) {
     cpu_times.erase(cpu_times.begin());
     mem_usages.erase(mem_usages.begin());
 
-    double avg_wall = std::accumulate(wall_times.begin(), wall_times.end(), 0.0) / wall_times.size();
+    double avg_time = std::accumulate(wall_times.begin(), wall_times.end(), 0.0) / wall_times.size();
     double avg_cpu  = std::accumulate(cpu_times.begin(),  cpu_times.end(),  0.0) / cpu_times.size();
     double avg_mem  = std::accumulate(mem_usages.begin(), mem_usages.end(), 0.0) / mem_usages.size();
 
-    out << n << "," << avg_wall << "," << avg_cpu << "," << avg_mem << "\n";
+    out << n << "," << avg_time << "," << avg_cpu << "," << avg_mem << "\n";
     out.flush();
 
-    std::cout << "  -> avg wall: " << avg_wall << "s, cpu: " << avg_cpu << "s, mem: " << avg_mem << "MB\n";
+    std::cout << "  -> avg time: " << avg_time << "s, cpu: " << avg_cpu << "s, mem: " << avg_mem << "MB\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    out << "size,avg_wall_s,avg_cpu_s,avg_mem_mb\n";
+    out << "size,avg_time_s,avg_cpu_s,avg_mem_mb\n";
 
     std::vector<size_t> sizes = {128, 256, 512, 1024, 2048};
     const int runs = 4;

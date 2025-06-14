@@ -12,9 +12,9 @@ public class MatrixBenchmark {
     public static void main(String[] args) {
         System.out.println("Starting Java Matrix Multiplication Benchmark...");
 
-        Path projectRoot = Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize();
-        Path resultsDir = projectRoot.resolve("results");
+        Path resultsDir = Paths.get("..", "results").toAbsolutePath().normalize();
         Path outputFile = resultsDir.resolve("benchmark_results_java.csv");
+
 
         try {
             Files.createDirectories(resultsDir);

@@ -6,11 +6,11 @@ Compare dense matrix multiplication performance across **C++**, **Java**, and **
 
 ```
 matrix-benchmark/
-├── cpp/          C++ source, build, results
-├── java/         Java source, results
-├── python/       Python scripts, results
+├── cpp/          C++ source, build
+├── java/         Java source
+├── python/       Python scripts
 ├── results/      All benchmark CSVs
-├── scripts/      Orchestration (run_all.sh, run_*.sh)
+├── scripts/      Orchestration (run_all.sh)
 ├── plots/        Generated charts
 └── .gitignore    Files/folders to ignore
 ```
@@ -48,7 +48,6 @@ matrix-benchmark/
 4. **Python only**
 
    ```bash
-   pip install -r requirements.txt
    python python/src/bench.py
    ```
 

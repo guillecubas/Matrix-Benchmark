@@ -5,104 +5,105 @@ set -euo pipefail
 # Script: run_all.sh
 # Purpose: Build and run C++, Java, and Python matrix benchmarks,
 #          then generate comparison plots—all without virtual environments.
-# Usage:
-#   chmod +x scripts/run_all.sh
-#   ./scripts/run_all.sh
 # ------------------------------------------------------------------
 
-# 1. Determine project root
+# Determinar raíz del proyecto
 dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(dirname "$dir")"
-echo "Project root: $project_root"
+echo "[INFO] Project root: $project_root"
 
+# Directorios
+cpp_dir="$project_root/cpp"
+java_src_dir="$project_root/java/src"
+python_dir="$project_root/python"
+results_dir="$project_root/results"
+plots_dir="$project_root/plots"
 
-mkdir -p "$project_root/results"
+mkdir -p "$results_dir"
 echo
-#!/bin/bash
-set -e  # Salir si hay error
 
-# ===== C++ Benchmark =====
+### ===== C++ Benchmark =====
 echo "[C++] Iniciando proceso..."
 
-# Verificar project_root
-if [ -z "$project_root" ]; then
-    project_root="$(pwd)"
-    echo "[C++] project_root definido como: $project_root"
+if [ ! -d "$cpp_dir" ]; then
+    echo "[ERROR] No se encontró el directorio: $cpp_dir"
+    exit 1
 fi
 
-echo "[C++] Cambiando a directorio C++..."
-cd "$project_root/cpp" || {
-    echo "[ERROR] No se puede acceder a $project_root/cpp"
-    exit 1
-}
+pushd "$cpp_dir" > /dev/null
 
-echo "[C++] Directorio actual: $(pwd)"
-echo "[C++] Contenido del directorio:"
-ls -la
-
-echo "[C++] Creando directorio build..."
 mkdir -p build
 
-echo "[C++] Verificando archivos fuente..."
-if [ ! -f "src/benchmark.cpp" ]; then
-    echo "[ERROR] No se encuentra src/benchmark.cpp"
+if [[ ! -f src/benchmark.cpp ]]; then
+    echo "[ERROR] Falta src/benchmark.cpp"
     exit 1
 fi
-
-if [ ! -f "src/matrix.cpp" ]; then
-    echo "[ERROR] No se encuentra src/matrix.cpp"
+if [[ ! -f src/matrix.cpp ]]; then
+    echo "[ERROR] Falta src/matrix.cpp"
     exit 1
 fi
 
 echo "[C++] Compilando..."
-g++ -std=c++17 -O3 -march=native src/benchmark.cpp src/matrix.cpp -o build/benchmark.exe -lpsapi 2>&1
-if [ $? -ne 0 ]; then
-    echo "[C++] Compilation failed!"
-    exit 1
-fi
+g++ -std=c++17 -O3 -march=native src/benchmark.cpp src/matrix.cpp -o build/benchmark.exe -lpsapi
+echo "[C++] Ejecutando benchmark..."
+./build/benchmark.exe
+echo "[C++] Hecho. Resultados -> $results_dir/benchmark_results_cpp.csv"
+popd > /dev/null
+echo
 
-echo "[C++] Compilación exitosa. Ejecutando benchmark..."
-./build/benchmark.exe 2>&1
-exit_code=$?
-
-echo "[C++] Benchmark terminado con código: $exit_code"
-if [ $exit_code -ne 0 ]; then
-    echo "[C++] Execution failed!"
-    exit 1
-fi
-
-echo "[C++] Done. Results -> $project_root/results/benchmark_results_cpp.csv"
 # ===== Java Benchmark =====
-echo "[Java] Compiling and running..."
-cd "$project_root/java/src"
-javac MatrixBenchmark.java
-cd "$project_root"
-java -cp java/src MatrixBenchmark
+echo "[Java] Compilando y ejecutando..."
 
-echo "[Java] Done. Results -> $project_root/results/benchmark_results_java.csv"
+if [ ! -d "$java_src_dir" ]; then
+    echo "[ERROR] No se encontró el directorio: $java_src_dir"
+    exit 1
+fi
+
+pushd "$java_src_dir" > /dev/null
+
+if [[ ! -f MatrixBenchmark.java ]]; then
+    echo "[ERROR] Falta MatrixBenchmark.java"
+    exit 1
+fi
+
+javac MatrixBenchmark.java
+echo "[Java] Ejecutando..."
+java MatrixBenchmark
+echo "[Java] Hecho. Resultados -> $results_dir/benchmark_results_java.csv"
+popd > /dev/null
 echo
 
 # ===== Python Benchmark =====
-echo "[Python] Running benchmark..."
-cd "$project_root/python"
+echo "[Python] Ejecutando benchmark..."
 
-# Install dependencies (global install)
-echo "[Python] Installing dependencies..."
-pip install --upgrade pip
-if [[ -f requirements.txt ]]; then
-  pip install -r requirements.txt
+if [ ! -d "$python_dir" ]; then
+    echo "[ERROR] No se encontró el directorio: $python_dir"
+    exit 1
 fi
 
-# Run Python benchmark
+pushd "$python_dir" > /dev/null
+
+
+if [[ ! -f src/bench.py ]]; then
+    echo "[ERROR] Falta src/bench.py"
+    exit 1
+fi
+
 python src/bench.py
-
-echo "[Python] Done. Results -> $project_root/results/benchmark_results_python.csv"
+echo "[Python] Hecho. Resultados -> $results_dir/benchmark_results_python.csv"
+popd > /dev/null
 echo
 
-# ===== Generate Plots =====
-echo "[Plots] Generating comparison plots..."
-python "$project_root/plots/generate_plots.py"
-echo "[Plots] Done. Charts saved in $project_root/plots"
+# ===== Plots =====
+echo "[Plots] Generando gráficos de comparación..."
+
+if [[ ! -f "$plots_dir/generate_plots.py" ]]; then
+    echo "[ERROR] No se encuentra generate_plots.py en $plots_dir"
+    exit 1
+fi
+
+python "$plots_dir/generate_plots.py"
+echo "[Plots] Hecho. Gráficos guardados en $plots_dir"
 echo
 
-echo "All benchmarks and plots complete. Results directory: $project_root/results"
+echo "✅ Todos los benchmarks y gráficos completados. Resultados en: $results_dir"
